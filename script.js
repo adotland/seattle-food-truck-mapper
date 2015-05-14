@@ -14,46 +14,47 @@ var geocoder,
     currentZoom,
     currentMarker,
     currentInfoWindow,
-    addressDataObj = {}, // address string -> {marker: Marker, title: String, days: String}
+    addressToMarkerMap = {}, // address string -> {marker: Marker}
     addressObj = {}; // mark if address has already been geocoded,
-    retries = 0;
+    retries = 0,
+    pageType = (/php\/([^\/]+)\//).exec(window.location.href)[1];
 
 var hoodOjb = {
-    "south-lake-union" : {
-        position : [47.6270, -122.3367],
-        zoom : 14
+    "south-lake-union": {
+        position: [47.6270, -122.3367],
+        zoom: 14
     },
-    "chucks-hop-shop" : {
-        position : [47.612702, -122.305753],
-        zoom : 11
+    "chucks-hop-shop": {
+        position: [47.612702, -122.305753],
+        zoom: 11
     },
-    "downtown-seattle" : {
-        position : [47.6053841, -122.3355372],
-        zoom : 14
+    "downtown-seattle": {
+        position: [47.6053841, -122.3355372],
+        zoom: 14
     },
-    "sodo" : {
-        position : [47.5896615, -122.3343165],
-        zoom : 14
+    "sodo": {
+        position: [47.5896615, -122.3343165],
+        zoom: 14
     },
-    "ballard" : {
-        position : [47.6776213, -122.3871803],
-        zoom : 13
+    "ballard": {
+        position: [47.6776213, -122.3871803],
+        zoom: 13
     },
-    "queen-anne" : {
-        position : [47.63747, -122.3578885],
-        zoom : 13
+    "queen-anne": {
+        position: [47.63747, -122.3578885],
+        zoom: 13
     },
-    "eastside" : {
-        position : [47.6452303, -122.1724149],
-        zoom : 11
+    "eastside": {
+        position: [47.6452303, -122.1724149],
+        zoom: 11
     },
-    "south-end" : {
-        position : [47.385653, -122.205749],
-        zoom : 10
+    "south-end": {
+        position: [47.385653, -122.205749],
+        zoom: 10
     },
-    "everywhere-else" : {
-        position : [47.614848, -122.3359058],
-        zoom : 9
+    "everywhere-else": {
+        position: [47.614848, -122.3359058],
+        zoom: 9
     }
 };
 
@@ -82,10 +83,15 @@ var initialize = function () {
     
 var setInitalMarkers = function () {
     var addressElements,
-    tdNotp = true;
+        address,
+        tdNotp = true;
 
     // some pages use tables, others use paragraphs...
     var rows = document.getElementsByClassName("entry-content")[0].getElementsByTagName("tr");
+    if (pageType === "trucks") {
+        rows = document.getElementsByClassName("entry-content")[0].getElementsByTagName("table")[1]
+            .getElementsByTagName("tr");
+    }
     if (!rows.length) {
         tdNotp = false;
         rows = document.getElementsByClassName("entry-content")[0].getElementsByTagName("p");
@@ -97,10 +103,19 @@ var setInitalMarkers = function () {
         } else {
             addressElement = rows[i];
         }
-        var address = getAddress(addressElement);
-        addressElement.setAttribute("onClick", "selectMarker(event, '" + address + "')");
-        if (this.addressObj[address] === undefined) {
-            setMarker(addressElement, address, /*isInit*/ true);
+        try {
+            address = getAddress(addressElement);
+        } catch(err) {
+        }
+        if (address !== undefined && addressElement !== undefined) {
+            addressElement.setAttribute("onClick", "selectMarker(event, '" + address + "')");
+            if (this.addressObj[address] === undefined) {
+                // don't look this address up again
+                this.addressObj[address] = 1
+                setMarker(addressElement, address, /*isInit*/ true);
+            } else {
+                console.log("already geocoded address:" + address);
+            }
         }
     }
 };
@@ -108,22 +123,26 @@ var setInitalMarkers = function () {
 var getAddress = function (addressElement) {
 
     var addressMarkup = addressElement.innerHTML,
-        rawAddress;
+        rawAddress,
+        result,
+        city = "Seattle";
 
     if (addressMarkup.indexOf("strong") === -1) {
-        rawAddress = /^[^,<(]*/.exec(addressMarkup)[0]; // just look at the markup...
+        rawAddress = /^[^,<(]*/.exec(addressMarkup)[0]; // take a look at the markup...
     } else {
-        rawAddress = /<br>(.*?[^,]*)/m.exec(addressMarkup)[0];
+        result = /<strong>(.+)<\/strong><br>(.*?[^,]*)/m.exec(addressMarkup);
+        rawAddress = result[2];
+        city = result[1];
     }
 
-    return formatAddress(rawAddress);
+    return formatAddress(rawAddress, city);
 };
 
-var formatAddress = function (address) {
+var formatAddress = function (address, city) {
    var tmp = document.createElement("div");
    tmp.innerHTML = address;
    var text = tmp.textContent || tmp.innerText || "";
-   return text.trim() + ", Seattle, WA";
+   return text.trim() + ", " + city + ", WA";
 }
 
 var setMarker = function (addressElement, address, isInit) {
@@ -132,32 +151,39 @@ var setMarker = function (addressElement, address, isInit) {
     geocoder.geocode({
         'address' : address
     }, function (results, status) {
+
         if (status == google.maps.GeocoderStatus.OK) {
-            console.log("geocoding: " + address);
 
-            var marker = new google.maps.Marker({
-                map : map,
-                position : results[0].geometry.location
-            });
+            //TODO: better validation check
+            if (results[0].formatted_address !== "Seattle, WA, USA") { // default invalid address
+                console.log("geocoded: " + address);
 
-            // don't look this address up again
-            instance.addressObj[address] = 1
+                var marker = new google.maps.Marker({
+                    map : map,
+                    position : results[0].geometry.location
+                });
 
-            // save marker for address link clicks
-            instance.addressDataObj[address] = getAddressData(addressElement, marker);
+                // save marker for address link clicks
+                instance.addressToMarkerMap[address] = marker;
 
-            addressElement.className = addressElement.className.replace(/\bfailInit\b/, "");
+                addressElement.className = addressElement.className.replace(/\bfailInit\b/, "");
 
-            google.maps.event.addListener(marker, 'click', function() {
-                zoomToMarker(address);
-            });
+                google.maps.event.addListener(marker, 'click', function() {
+                    zoomToMarker(addressElement, address);
+                });
 
-            // on Init, want to show all markers, otherwise zoom to marker
-            if (!isInit) {
-                zoomToMarker(address);
+                // on Init, want to show all markers, otherwise zoom to marker
+                if (!isInit) {
+                    zoomToMarker(addressElement, address);
+                }
+            } else {
+                console.log("not setting marker for invalid address: " + address);
             }
         } else {
-            console.log("Geocode was not successful on [" + address + "] for the following reason: " + status);
+            instance.addressObj[address] = undefined;
+            var msg = "Geocode was not successful on [" + address + "] for the following reason: "
+                + status;
+            console.log(msg);
             setFail(addressElement, isInit);
             while(++instance.retries < 3) { //TODO: figure out how to get around quota limit
                 setTimeout(setInitalMarkers, instance.retries * 7000);
@@ -166,13 +192,21 @@ var setMarker = function (addressElement, address, isInit) {
     });
 };
 
-var getAddressData = function (addressElement, marker) {
+var getAddressData = function (addressElement) {
     var addressData = {};
-    addressData.marker = marker;
-    addressData.title = addressElement.previousElementSibling.innerText;
-    
+
+    if (pageType !== "trucks") {
+        addressData.url = addressElement.previousElementSibling.getElementsByTagName("a")[0].href;
+        addressData.title = addressElement.previousElementSibling.innerText;
+    } else {
+        addressData.url = "javascript:void(0);";
+        addressData.title = addressElement.previousElementSibling.innerText.replace(":", "");
+    }
+
     try {
-        addressData.day = getClosest(addressElement, "table").previousElementSibling.innerText; //TODO: get list, maybe account for nested tables :( smh
+        //TODO: get list, maybe account for nested tables :( smh
+        addressData.day = getClosest(addressElement, "table")
+            .previousElementSibling.innerText;
     } catch(err) {
         console.log(err);
     }
@@ -180,45 +214,55 @@ var getAddressData = function (addressElement, marker) {
     return addressData;
 };
 
-function getClosest(el, tag) {
-  tag = tag.toUpperCase();
-  do {
-    if (el.nodeName === tag) {
-      return el;
-    }
-  } while (el = el.parentNode);
+var getClosest = function (element, tagName) {
+    tagName = tagName.toUpperCase();
+    do {
+        if (element.nodeName === tagName) {
+            return element;
+        }
+    } while (element = element.parentNode);
 
-  return null;
-}
-var zoomToMarker = function (address){
+    return null;
+};
+
+var zoomToMarker = function (addressElement, address){
     // clear previous marker behavior
-    if (this.currentInfoWindow !== undefined) {
-        this.currentInfoWindow.close();
+    if (currentInfoWindow !== undefined) {
+        currentInfoWindow.close();
     }
-    if (this.currentMarker !== undefined) {
-        this.currentMarker.setAnimation(null);
+    if (currentMarker !== undefined) {
+        currentMarker.setAnimation(null);
     }
-    var marker = this.addressDataObj[address].marker;
-    
+
+    var marker = this.addressToMarkerMap[address],
+        data = getAddressData(addressElement);
+
     //create popup with info
     var infoWindow = new google.maps.InfoWindow({
-        content: getInfoWindowContent(address)
+        content: getInfoWindowContent(data)
     });
+
     // display
     infoWindow.open(map, marker);
     marker.setAnimation(google.maps.Animation.BOUNCE);
-    this.currentMarker = marker;
-    this.currentInfoWindow = infoWindow;
+    currentMarker = marker;
+    currentInfoWindow = infoWindow;
 
-    map.setCenter(marker.position);
-    map.setZoom(15);
+    map.panTo(marker.position);
+
+    if (map.getZoom() < 15) {
+        map.setZoom(15);
+    }
+
     document.getElementById("map-canvas").scrollIntoView();
 };
 
-var getInfoWindowContent = function (address) {
-    return '<span class="sft_title">' + this.addressDataObj[address].title + 
-        '</span><br><span class="sft_day">' + this.addressDataObj[address].day + 
-        '</span>';
+var getInfoWindowContent = function (data) {
+    return '<span class="sft_title">'
+        + '<a href="' + data.url + '">'
+        + data.title 
+        + '</span></a><br><span class="sft_day">' + data.day
+        + '</span>';
 };
 
 var setFail = function (addressElement, isInit) {
@@ -232,21 +276,23 @@ var setFail = function (addressElement, isInit) {
 
 var selectMarker = function (event, address) {
     var element = getCorrectElement(event.target);
-    var classes = event.target.className;
+    var classes = element.className;
 
     // if geocoding for this address failed on page load only, try again
-    if (classes.indexOf("failInit") !== -1 && classes.indexOf("failTwice") === -1) { //TODO: a state here would be better
-        setMarker(event.target, address, /*isInit*/ false);
+    //TODO: a state here would be better
+    if (classes.indexOf("failInit") !== -1 && classes.indexOf("failTwice") === -1) {
+        setMarker(element, address, /*isInit*/ false);
     } else if (classes.indexOf("failTwice") === -1) {
         // try centering and zooming to existing marker for address
-        zoomToMarker(address);
+        zoomToMarker(element, address);
     }
 };
 
 var getCorrectElement = function (element) {
     var returnElement;
     switch (element.tagName) {
-    case "td", "P":
+    case "TD":
+    case "P":
         returnElement = element;
         break;
     default: //strong, ...
