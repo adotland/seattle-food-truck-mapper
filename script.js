@@ -1,3 +1,9 @@
+var DEBUG = false;
+var LOG = function (msg) {
+    if (DEBUG === true) {
+        console.log(msg);
+    }
+};
 
 function loadGmapScript() {
     var script = document.createElement('script');
@@ -15,7 +21,7 @@ var geocoder,
     currentMarker,
     currentInfoWindow,
     addressToMarkerMap = {}, // address string -> {marker: Marker}
-    addressObj = {}; // mark if address has already been geocoded,
+    addressObj = {}, // mark if address has already been geocoded,
     retries = 0,
     pageType = (/php\/([^\/]+)\//).exec(window.location.href)[1];
 
@@ -58,18 +64,22 @@ var hoodOjb = {
     }
 };
 
-var initialize = function () {    
+var initialize = function () {
     geocoder = new google.maps.Geocoder();
-    var hood;
+    var hood,
+        hoodData,
+        mapOptions;
+
+
     try {
         hood = (/neighborhoods\/(.*)\//).exec(window.location.href)[1];
-    } catch(err) {
+    } catch (err) {
         hood = "everywhere-else"; // if not viewing by neighborhood
     }
-    var hoodData = hoodOjb[hood];
+    hoodData = hoodOjb[hood];
     currentZoom = hoodData.zoom;
 
-    var mapOptions = {
+    mapOptions = {
         zoom : currentZoom,
         center : new google.maps.LatLng(hoodData.position[0], hoodData.position[1])
     };
@@ -114,7 +124,7 @@ var setInitalMarkers = function () {
                 this.addressObj[address] = 1
                 setMarker(addressElement, address, /*isInit*/ true);
             } else {
-                console.log("already geocoded address:" + address);
+                LOG("already geocoded address:" + address);
             }
         }
     }
@@ -156,7 +166,7 @@ var setMarker = function (addressElement, address, isInit) {
 
             //TODO: better validation check
             if (results[0].formatted_address !== "Seattle, WA, USA") { // default invalid address
-                console.log("geocoded: " + address);
+                LOG("geocoded: " + address);
 
                 var marker = new google.maps.Marker({
                     map : map,
@@ -177,13 +187,13 @@ var setMarker = function (addressElement, address, isInit) {
                     zoomToMarker(addressElement, address);
                 }
             } else {
-                console.log("not setting marker for invalid address: " + address);
+                LOG("not setting marker for invalid address: " + address);
             }
         } else {
             instance.addressObj[address] = undefined;
             var msg = "Geocode was not successful on [" + address + "] for the following reason: "
                 + status;
-            console.log(msg);
+            LOG(msg);
             setFail(addressElement, isInit);
             while(++instance.retries < 3) { //TODO: figure out how to get around quota limit
                 setTimeout(setInitalMarkers, instance.retries * 7000);
@@ -194,13 +204,17 @@ var setMarker = function (addressElement, address, isInit) {
 
 var getAddressData = function (addressElement) {
     var addressData = {};
+    addressData.url =  "javascript:void(0);";
 
-    if (pageType !== "trucks") {
-        addressData.url = addressElement.previousElementSibling.getElementsByTagName("a")[0].href;
-        addressData.title = addressElement.previousElementSibling.innerText;
-    } else {
-        addressData.url = "javascript:void(0);";
+    if (pageType === "trucks") {
         addressData.title = addressElement.previousElementSibling.innerText.replace(":", "");
+    } else {
+        if (addressElement.nodeName === "P") {
+            addressData.title = addressElement.getElementsByTagName("strong")[0].innerText;
+        } else {
+            addressData.url = addressElement.previousElementSibling.getElementsByTagName("a")[0].href;
+            addressData.title = addressElement.previousElementSibling.innerText;
+        }
     }
 
     try {
@@ -208,7 +222,7 @@ var getAddressData = function (addressElement) {
         addressData.day = getClosest(addressElement, "table")
             .previousElementSibling.innerText;
     } catch(err) {
-        console.log(err);
+        LOG(err);
     }
 
     return addressData;
