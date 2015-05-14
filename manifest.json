@@ -1,0 +1,31 @@
+{
+  "name": "Seattle Food Truck Mapper",
+  "description": "Seattle Food Truck Mapper",
+  "version": "0.1",
+  "permissions": [
+    "*://*.seattlefoodtruck.com/*",
+    "browsingData"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://www.seattlefoodtruck.com/index.php/trucks/*",
+        "http://www.seattlefoodtruck.com/index.php/neighborhoods/*",
+        "http://www.seattlefoodtruck.com/index.php/by-day/*"],
+      "js": ["injector.js"],
+      "css": ["style.css"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "externally_connectable": {
+    "matches": ["*://*.seattlefoodtruck.com/*"]
+  },
+  "web_accessible_resources": [
+    "script.js"
+  ],
+  "manifest_version": 2,
+  "content_security_policy": "script-src 'self' https://maps.googleapis.com https://maps.gstatic.com 'unsafe-eval'; object-src 'self'"
+}

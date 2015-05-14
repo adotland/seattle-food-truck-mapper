@@ -1,0 +1,28 @@
+.entry-content TD,
+.entry-content P {
+  cursor: pointer;
+  text-decoration: dotted;
+}
+
+.entry-content TD:hover,
+.entry-content P:hover {
+  text-decoration: underline;
+}
+
+.entry-content TD.failInit,
+.entry-content P.failInit,
+.entry-content TD.failTwice,
+.entry-content P.failTwice  {
+cursor: default;
+text-decoration: none;
+}
+
+#map-canvas {
+  height: 430px;
+  width: 430px;
+  margin-bottom: 10px;
+}
+
+.sft_title {
+  font-weight: bold;
+}
