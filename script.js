@@ -6,6 +6,7 @@ var LOG = function (msg) {
 };
 
 function loadGmapScript() {
+	LOG("loadGmapScript");
     var script = document.createElement('script');
     script.type = 'text/javascript';
     script.src = 'https://maps.googleapis.com/maps/api/js?v=3.exp' +
@@ -13,7 +14,9 @@ function loadGmapScript() {
     document.body.appendChild(script);
 }
 
-window.addEventListener("load", loadGmapScript);
+LOG("addEventListener");
+//window.addEventListener("load", loadGmapScript, false);
+setTimeout(loadGmapScript, 500); //TODO: ...
 
 var geocoder,
     map,
@@ -65,6 +68,7 @@ var hoodOjb = {
 };
 
 var initialize = function () {
+	LOG("initialize");
     geocoder = new google.maps.Geocoder();
     var hood,
         hoodData,

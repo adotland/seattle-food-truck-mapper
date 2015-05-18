@@ -29,7 +29,7 @@ var clearCache = function () {
 
 chrome.tabs.onUpdated.addListener(function (tabId, props) {
 	if (props.status === "complete")
-		clearCache();
+		//clearCache(); //load issue may be correct fix
 });
 
 chrome.runtime.onInstalled.addListener(function (details){
